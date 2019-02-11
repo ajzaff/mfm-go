@@ -1,62 +1,45 @@
 package atom
 
 import (
-	"ajz_xyz/experimental/computation/mfm-go"
-
 	"github.com/nsf/termbox-go"
+
+	"ajz_xyz/experimental/computation/mfm-go"
 )
 
-// DReg atom implements a dynamic space regulator atom.
+// DRegInfo implements a dynamic space regulator atom.
 // Roles include producing Res, random destruction,
 // and occasional reproduction.
-type DReg int
-
-// Func implements the DReg atom behavior.
-func (a DReg) Func(w *mfm.Window) {
-	n := 0
-	var abuf [10]mfm.Atom
-	var sbuf [10]mfm.Site
-	err := w.At(mfm.NeighborDeltas, func(s mfm.Site, a mfm.Atom) error {
-		if w.Valid(s) {
-			if a == nil {
-				if w.Roll(511) {
-					// Create new Res.
-					sbuf[n] = s
-					abuf[n] = Res(0)
-					n++
-				} else if w.Roll(2047) {
-					// Reproduce new DReg.
-					sbuf[n] = s
-					abuf[n] = DReg(0)
-					n++
-				}
-			} else if _, ok := a.(DReg); (ok && w.Roll(7)) || w.Roll(255) {
-				// Destroy an adjacent DReg or general destruction.
-				sbuf[n] = s
-				abuf[n] = nil
-				n++
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		panic(err)
-	}
-	if s, ok := w.Diffuse(); ok {
-		sbuf[n], abuf[n] = mfm.Me, nil
-		n++
-		sbuf[n], abuf[n] = s, a
-		n++
-	}
-	if n > 0 {
-		w.Write(sbuf[:n], abuf[:n])
-	}
+var DRegInfo = mfm.AtomInfo{
+	Radius: 2,
+	Rune:   'D',
+	Fg:     termbox.ColorMagenta,
+	USeq:   "D",
+	String: "DReg",
 }
 
-// Rune returns the rune for this atom.
-func (a DReg) Rune() rune { return 'D' }
+func init() {
+	DRegInfo.Func = DReg
+}
 
-// Color returns the terminal foreground attribute.
-func (a DReg) Color() termbox.Attribute { return termbox.ColorMagenta }
+var (
+	newRes  = mfm.Atom{Type: &ResInfo, Value: 0}
+	newDReg = mfm.Atom{Type: &DRegInfo, Value: 0}
+)
 
-func (a DReg) String() string { return "dreg" }
+// DReg defines the update function for DReg atoms.
+func DReg(w *mfm.Window) {
+	a, s := w.Atom(), w.Site()
+	if a.Type == nil {
+		if w.Roll(511) { // create Res
+			w.Set(newRes)
+		} else if w.Roll(2047) { // create Dreg
+			w.Set(newDReg)
+		} else {
+			w.Swap(0)
+		}
+		w.Stop()
+	} else if s != 0 && ((a.Type.ID == DRegInfo.ID && w.Roll(7)) || w.Roll(255)) {
+		w.Remove() // random destruction
+		w.Stop()
+	}
+}

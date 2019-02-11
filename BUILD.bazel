@@ -1,0 +1,17 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "atom.go",
+        "sim.go",
+        "site.go",
+        "win.go",
+    ],
+    importpath = "ajz_xyz/experimental/computation/mfm-go",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//experimental/computation/mfm-go/rand:go_default_library",
+        "@com_github_nsf_termbox_go//:go_default_library",
+    ],
+)

@@ -1,0 +1,24 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "dreg.go",
+        "fern.go",
+        "fork.go",
+        "fox.go",
+        "germ.go",
+        "herbasaur.go",
+        "ioutil.go",
+        "rabbit.go",
+        "res.go",
+        "sentry.go",
+        "tree.go",
+    ],
+    importpath = "ajz_xyz/experimental/computation/mfm-go/atom",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//experimental/computation/mfm-go:go_default_library",
+        "@com_github_nsf_termbox_go//:go_default_library",
+    ],
+)

@@ -1,130 +1,170 @@
 package mfm
 
-import (
-	rand "ajz_xyz/numerics/random/xorshift64star"
+import "sync"
 
-	"github.com/nsf/termbox-go"
+// SimConfig holds configuration used to create a new simulation.
+type SimConfig struct {
+	Mode   SimMode
+	Seed   uint64
+	Width  int
+	Height int
+}
 
-	"sync"
-	"time"
+// SimState contains public data related to the running the simulation.
+type SimState struct {
+	Sites  map[C2D]Atom
+	Mode   SimMode
+	Events int
+	Width  int
+	Height int
+}
+
+// SimMode defines various running modes of the sim.
+type SimMode int
+
+// Enumerate sim states.
+const (
+	ModeRun           = 0
+	ModePause SimMode = 1 << iota
+	ModeYield
 )
 
 // Sim represents a sparse atom simulation.
 type Sim struct {
-	Bounds *C2D
-	Events int
-	Census map[Atom]int
-	Sites  map[C2D]Atom
-
-	r  rand.Rand
-	w  Window
-	rw sync.RWMutex
-	p  sync.Mutex
+	state  SimState
+	win    Window
+	nextID uint64
+	scond  sync.Cond
+	smutex sync.Mutex
 }
 
-// Atom defines the interface for an atom in the simulation.
-type Atom interface {
-	Func(w *Window)
-	String() string
-	Rune() rune
-	Color() termbox.Attribute
+// New creates a new mfm sim.
+func New(c *SimConfig) *Sim {
+	sim := &Sim{state: SimState{
+		Mode:   c.Mode,
+		Width:  c.Width,
+		Height: c.Height,
+		Sites:  make(map[C2D]Atom),
+	}}
+	sim.scond.L = &sim.smutex
+	sim.win.rand.Seed(c.Seed)
+	return sim
 }
 
-// Hook provides a extensible functionality the sim.
-type Hook interface {
-	Init(*Sim)
-	Call(*Sim)
-	Wait(*Sim)
+func (s *Sim) SetMode(t SimMode) {
+	s.scond.L.Lock()
+	defer s.scond.L.Unlock()
+	s.state.Mode = t
+	if s.state.Mode == 0 {
+		s.scond.Signal()
+	}
 }
+func (s *Sim) Mode() SimMode { return s.state.Mode }
+func (s *Sim) State() SimState {
+	state := SimState{
+		Sites:  make(map[C2D]Atom),
+		Mode:   s.state.Mode,
+		Events: s.state.Events,
+		Width:  s.state.Width,
+		Height: s.state.Height,
+	}
+	for c, a := range s.state.Sites { // copy sites
+		state.Sites[c] = a
+	}
+	return state
+}
+func (s *Sim) Reset() { s.state.Sites = make(map[C2D]Atom) }
+func (s *Sim) valid(c C2D) bool {
+	return (s.state.Width == 0 && s.state.Height == 0) ||
+		(c.X >= 0 && c.Y >= 0 && c.X < s.state.Width && c.Y < s.state.Height)
+}
+func (s *Sim) Set(c C2D, a Atom) (ok bool) {
+	if s.valid(c) {
+		ok = true
+		if a.Type == nil {
+			delete(s.state.Sites, c)
+		} else {
+			s.state.Sites[c] = a
+		}
+	}
+	return
+}
+func (s *Sim) Get(c C2D) (a Atom, ok bool) {
+	return s.state.Sites[c], s.valid(c)
+}
+func (s *Sim) Step() { // must be yielded or paused
+	var c2 C2D
 
-// RegisterHooks registers and starts the hooks.
+	s.state.Events += len(s.state.Sites)
+	for c, a := range s.state.Sites {
+		n := r[a.Type.Radius]
+		if n == 0 {
+			continue
+		}
+		s.win.loc = c
+		s.win.me = a
+		site := Site(uint32((uint64(uint32(s.win.rand.Uint64())) * uint64(n)) >> 32))
+		c2.Set(site)
+		c2.Add(c2, s.win.loc)
+		if !s.valid(c2) {
+			continue
+		}
+		s.win.Reset()
+		s.win.s = site
+		s.win.a, _ = s.state.Sites[c2]
+		a.Type.Func(&s.win)
+		var dst C2D
+		dst.Set(s.win.mut.dst)
+		dst.Add(dst, s.win.loc)
+		switch {
+		case s.win.mut.mode&mutSet != 0:
+			s.Set(c2, s.win.mut.atom)
+		case s.win.mut.mode&mutMove != 0:
+			a, _ := s.Get(c2)
+			s.Set(dst, a)
+		case s.win.mut.mode&mutSwap != 0:
+			a, _ := s.Get(c2)
+			if a2, ok := s.Get(dst); ok {
+				s.Set(dst, a)
+				s.Set(c2, a2)
+			}
+		}
+	}
+}
+func (s *Sim) Run() {
+	for {
+		s.scond.L.Lock()
+		for s.state.Mode != 0 {
+			s.scond.Wait()
+		}
+		s.Step()
+		s.scond.L.Unlock()
+	}
+}
+func (s *Sim) RegisterAtoms(atoms ...*AtomInfo) {
+	for _, a := range atoms {
+		s.nextID++
+		a.ID = s.nextID
+	}
+}
 func (s *Sim) RegisterHooks(hooks ...Hook) {
+	var hookMu sync.Mutex
 	for _, h := range hooks {
 		go func(h Hook) { // schedule hook
-			h.Init(s)
 			for {
-				h.Wait(s)
-				h.Call(s)
+				h.Wait()
+				hookMu.Lock()
+				s.SetMode(s.state.Mode ^ ModeYield)
+				h.Call()
+				s.SetMode(s.state.Mode ^ ModeYield)
+				hookMu.Unlock()
 			}
 		}(h)
 	}
 }
 
-// Seed initializes the random number generator.
-func (s *Sim) Seed(seed int64) { s.r.Seed(seed) }
-
-// RLock acquires a reader exclusive lock.
-func (s *Sim) RLock() { s.rw.RLock() }
-
-// RUnlock releases a reader exclusive lock.
-func (s *Sim) RUnlock() { s.rw.RUnlock() }
-
-// Pause acquires the pause lock.
-func (s *Sim) Pause() { s.p.Lock() }
-
-// Unpause releases the pause lock.
-func (s *Sim) Unpause() { s.p.Unlock() }
-
-// Set updates the atom at the given position if valid.
-func (s *Sim) Set(c C2D, a Atom) {
-	s.rw.Lock()
-	defer s.rw.Unlock()
-	s.set(c, a)
-}
-
-func (s *Sim) set(c C2D, a Atom) {
-	if s.Bounds != nil && (c.X < 0 || c.Y < 0 || c.X >= s.Bounds.X || c.Y >= s.Bounds.Y) {
-		return
-	}
-	if a, ok := s.Sites[c]; ok {
-		s.Census[a]--
-	}
-	if a == nil {
-		delete(s.Sites, c)
-	} else {
-		s.Sites[c] = a
-		s.Census[a]++
-	}
-}
-
-// Step advances the sim one time step.
-func (s *Sim) Step() {
-	s.step()
-}
-
-func (s *Sim) stepPausable() {
-	s.p.Lock()
-	defer s.p.Unlock()
-	s.step()
-}
-
-func (s *Sim) step() {
-	s.rw.Lock()
-	defer s.rw.Unlock()
-	s.Events += len(s.Sites)
-	for at, a := range s.Sites {
-		s.w.loc = at
-		a.Func(&s.w)
-	}
-}
-
-// Clear resets the sim to an empty state.
-func (s *Sim) Clear() {
-	s.rw.Lock()
-	defer s.rw.Unlock()
-	s.Events = 0
-	s.Census = make(map[Atom]int)
-	s.Sites = make(map[C2D]Atom)
-}
-
-// Run begins the sim loop.
-func (s *Sim) Run() {
-	if s.r == 0 {
-		s.r.Seed(time.Now().UnixNano())
-	}
-	s.p.Lock() // start out paused
-	s.w.s = s
-	for {
-		s.stepPausable()
-	}
+// Hook provides a extensible functionality the simulation.
+type Hook interface {
+	Call()
+	Wait()
 }

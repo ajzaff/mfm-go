@@ -1,0 +1,10 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "go_default_test",
+    srcs = ["bench_test.go"],
+    deps = [
+        "//experimental/computation/mfm-go:go_default_library",
+        "//experimental/computation/mfm-go/atom:go_default_library",
+    ],
+)

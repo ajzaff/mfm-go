@@ -1,4 +1,4 @@
-package pprof
+package bench
 
 import (
 	"testing"
@@ -8,14 +8,34 @@ import (
 	"ajz_xyz/experimental/computation/mfm-go/atom"
 )
 
-// BenchmarkDreg runs a dreg benchmark for 10 seconds.
-func BenchmarkDreg(b *testing.B) {
-	sim := mfm.Sim{
-		Bounds: &mfm.C2D{X: 8000, Y: 3000},
-		Census: make(map[mfm.Atom]int),
-		Sites:  make(map[mfm.C2D]mfm.Atom),
-	}
-	sim.Set(mfm.C2D{X: 39, Y: 9}, atom.DReg(0))
+func newSim() *mfm.Sim {
+	sim := mfm.New(&mfm.SimConfig{
+		Width:  10000,
+		Height: 10000,
+	})
+	sim.RegisterAtoms(
+		&atom.DRegInfo,
+		&atom.ResInfo,
+		&atom.SentryInfo,
+	)
+	return sim
+}
+
+// BenchmarkDreg runs a DReg atom benchmark.
+func BenchmarkDReg(b *testing.B) {
+	sim := newSim()
+	sim.Set(mfm.C2D{39, 9}, mfm.Atom{Type: &atom.DRegInfo})
 	go sim.Run()
-	<-time.After(60 * time.Second)
+	<-time.After(600 * time.Second)
+}
+
+// BenchmarkSentry runs a sentry atom benchmark.
+func BenchmarkSentry(b *testing.B) {
+	sim := newSim()
+	sim.Set(mfm.C2D{39, 9}, mfm.Atom{Type: &atom.DRegInfo})
+	for i := 0; i < 100; i++ {
+		sim.Set(mfm.C2D{i, 39}, mfm.Atom{Type: &atom.SentryInfo})
+	}
+	go sim.Run()
+	<-time.After(600 * time.Second)
 }

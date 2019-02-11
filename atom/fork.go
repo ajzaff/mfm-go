@@ -1,27 +1,27 @@
 package atom
 
 import (
-	"ajz_xyz/experimental/computation/mfm-go"
-
 	"github.com/nsf/termbox-go"
+
+	"ajz_xyz/experimental/computation/mfm-go"
 )
 
-// Fork is a forking atom type.
-type Fork int
-
-// Func defines the forking atom behavior.
-func (a Fork) Func(w *mfm.Window) {
-	var abuf [41]mfm.Atom
-	for i := range mfm.InitialWindow {
-		abuf[i] = Fork(0)
-	}
-	w.Write(mfm.InitialWindow[:], abuf[:])
+// ForkInfo defines the info for a forking atom.
+var ForkInfo = mfm.AtomInfo{
+	Radius: 5,
+	Rune:   'X',
+	Fg:     termbox.ColorRed,
+	USeq:   "💥",
+	String: "Fork",
 }
 
-// Rune returns the rune for this atom.
-func (a Fork) Rune() rune { return 'X' }
+func init() {
+	ForkInfo.Func = Fork
+}
 
-// Color returns the terminal foreground attribute.
-func (a Fork) Color() termbox.Attribute { return termbox.ColorRed }
+var newFork = mfm.Atom{Type: &ForkInfo, Value: 0}
 
-func (a Fork) String() string { return "fork" }
+// Fork defines the fork function.
+func Fork(w *mfm.Window) {
+	w.Set(newFork)
+}

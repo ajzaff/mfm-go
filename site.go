@@ -12,12 +12,10 @@ package mfm
 //             39
 type Site int
 
-// Me represents the event window origin at 0.
-var Me Site
-
 var xs = []int{0, -1, 0, 0, 1, -1, -1, 1, 1, -2, 0, 0, 2, -2, -2, -1, -1, 1, 1, 2, 2, -3, 0, 0, 3, -2, -2, 2, 2, -3, -3, -1, -1, 1, 1, 3, 3, -4, 0, 0, 4}
 var ys = []int{0, 0, 1, -1, 0, 1, -1, 1, -1, 0, 2, -2, 0, 1, -1, 2, -2, 2, -2, 1, -1, 0, 3, -3, 0, 2, -2, 2, -2, 1, -1, 3, -3, 3, -3, 1, -1, 0, 4, -4, 0}
 var dist = []int{0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4}
+var r = [6]int{0, 1, 9, 21, 25, 41}
 
 // Dist returns the distance to another site.
 func (s Site) Dist(s1 Site) int {
@@ -28,18 +26,12 @@ func (s Site) Dist(s1 Site) int {
 	return d
 }
 
-// C2D used to represent an absolute coordinate.
-// This should not be leaked to atom implementations.
+// C2D is used to represent an absolute coordinate.
+// C2D should not be leaked to atom implementations.
 type C2D struct{ X, Y int }
 
-// SetSite updates the value of c with the value of the site converted to a C2D.
-func (c *C2D) SetSite(s Site) { c.X = xs[s]; c.Y = ys[s] }
-
-// SetC2D updates the value of c with the value of other.
-func (c *C2D) SetC2D(other C2D) { c.X = other.X; c.Y = other.Y }
-
-// Set updates the value of c with x, y.
-func (c *C2D) Set(x, y int) { c.X = x; c.Y = y }
+// Set updates the value of c with the value of the site converted to a c2d.
+func (c *C2D) Set(s Site) { c.X = xs[s]; c.Y = ys[s] }
 
 // Add updates the value of c to c1+c2 and returns the result.
 func (c *C2D) Add(c1, c2 C2D) C2D {
