@@ -234,6 +234,12 @@ func (t *Term) Call() {
 				t.handleVisualPaste(mfm.Atom{&atom.RabbitInfo, 0})
 			case e.Ch == 'E':
 				t.handleVisualPaste(mfm.Atom{&atom.HerbasaurInfo, 0})
+			case e.Ch == 'O':
+				t.handleVisualPaste(mfm.Atom{&atom.RockInfo, 0})
+			case e.Ch == '[':
+				t.handleVisualPaste(mfm.Atom{&atom.PaperInfo, 0})
+			case e.Ch == 'V':
+				t.handleVisualPaste(mfm.Atom{&atom.ScissorsInfo, 0})
 			case e.Ch == '^':
 				t.v2.x, t.v2.y, t.cur.x, t.cur.y = 0, 0, 0, 0
 			case e.Ch == '$':

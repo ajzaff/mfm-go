@@ -65,6 +65,9 @@ func main() {
 		&atom.GermInfo,
 		&atom.FernInfo,
 		&atom.TreeInfo,
+		&atom.RockInfo,
+		&atom.PaperInfo,
+		&atom.ScissorsInfo,
 	)
 	sim.RegisterHooks(stat, term)
 	sim.Run()
